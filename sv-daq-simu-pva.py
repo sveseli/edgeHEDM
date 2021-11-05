@@ -1,4 +1,5 @@
-import time, threading, queue, h5py, argparse
+import time, threading, queue, argparse
+#import h5py
 import numpy as np
 import pvaccess as pva
 
@@ -30,6 +31,12 @@ class daqSimuEPICS:
         self.next_publish_time = 0
         self.start_delay = start_delay
 
+    def get_timestamp(self):
+        s = time.time()
+        ns = int((s-int(s))*1000000000)
+        s = int(s)
+        return pva.PvTimeStamp(s,ns)
+
     def frame_producer(self, extraFieldsPvObject=None):
         for frame_id in range(0, self.n_generated_frames):
 
@@ -39,12 +46,19 @@ class daqSimuEPICS:
                 nda = pva.NtNdArray(extraFieldsPvObject.getStructureDict())
 
             nda['uniqueId'] = frame_id
-            nda['codec'] = pva.PvCodec('pvapyc', pva.PvInt(14))
+            nda['codec'] = pva.PvCodec('pvapyc', pva.PvInt(5))
             dims = [pva.PvDimension(self.rows, 0, self.rows, 1, False), \
                     pva.PvDimension(self.cols, 0, self.cols, 1, False)]
             nda['dimension'] = dims
+            nda['compressedSize'] = self.rows*self.cols
+            nda['uncompressedSize'] = self.rows*self.cols
+            ts = self.get_timestamp()
+            nda['timeStamp'] = ts
+            nda['dataTimeStamp'] = ts
             nda['descriptor'] = 'PvaPy Simulated Image'
             nda['value'] = {'ubyteValue': self.frames[frame_id].flatten()}
+            attrs = [pva.NtAttribute('ColorMode', pva.PvInt(0))]
+            nda['attribute'] = attrs
             if extraFieldsPvObject is not None:
                 nda.set(extraFieldsPvObject)
             self.frame_map[frame_id] = nda
